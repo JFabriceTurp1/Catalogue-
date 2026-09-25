@@ -32,8 +32,15 @@ main{max-width:1200px;margin:auto;padding:18px 16px 40px}
 .pill{background:#fff;border:1px solid var(--border);border-radius:999px;padding:8px 12px;box-shadow:var(--shadow);font-size:.92rem}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
-.thumb{aspect-ratio:4/3;background:#e8eef6;display:grid;place-items:center;overflow:hidden}
-.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb{aspect-ratio:4/3;background:#e8eef6;display:grid;place-items:center;overflow:hidden;position:relative;border-bottom:1px solid var(--border);transition:.18s ease}
+.thumb img{width:100%;height:100%;object-fit:contain;object-position:center;background:#fff}
+.thumb.dropzone{cursor:pointer}
+.thumb.dropzone::after{content:"Glisser-déposer une image ici";position:absolute;inset:auto 10px 10px 10px;padding:8px 10px;border-radius:10px;background:rgba(23,50,77,.78);color:#fff;text-align:center;font-size:.78rem;font-weight:700;opacity:0;transition:.18s ease;pointer-events:none}
+.card:hover .thumb.dropzone::after,.thumb.dragover::after{opacity:1}
+.thumb.dragover{outline:4px solid var(--accent2);outline-offset:-4px;background:#dff4ff}
+.thumb.dragover::after{content:"Déposer sur cette pièce";opacity:1;background:var(--accent)}
+.no-photo{padding:16px;text-align:center;color:var(--muted);font-weight:700;line-height:1.35}
+.no-photo small{display:block;font-weight:500;margin-top:5px}
 .card-body{padding:13px;display:flex;flex-direction:column;gap:8px;flex:1}
 .title{font-weight:800;font-size:1.05rem}
 .meta{color:var(--muted);font-size:.88rem}
@@ -68,7 +75,7 @@ label{font-size:.86rem;font-weight:700;display:block;margin-bottom:5px}
 <header>
   <div class="wrap">
     <h1>Photothèque Atelier</h1>
-    <div class="sub">Base locale de photos — catalogue prérempli de pièces et systèmes automobiles</div>
+    <div class="sub">Base locale — 162 pièces préremplies • glisser-déposer • images centrées et optimisées en 4:3</div>
     <div class="toolbar">
       <input id="search" class="search" type="search" placeholder="Rechercher : disque de frein, Clio, freinage, usure…">
       <button id="addBtn">+ Ajouter une photo</button>
@@ -151,7 +158,7 @@ label{font-size:.86rem;font-weight:700;display:block;margin-bottom:5px}
           <textarea id="notes" rows="3" placeholder="Informations utiles, défaut visible, contexte pédagogique…"></textarea>
         </div>
         <div class="full note">
-          Les images sont enregistrées dans la base locale du navigateur. Utilisez régulièrement « Exporter la base » pour conserver une copie de sécurité.
+          Les images ajoutées sont automatiquement placées sur un fond 4:3 (1200 × 900), centrées sans déformation et sans débordement. Utilisez régulièrement « Exporter la base » pour conserver une copie de sécurité.
         </div>
       </div>
     </div>
@@ -215,6 +222,7 @@ function fileToDataURL(file){
 function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function normalize(s=''){return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
 
+\nasync function normalizeImageFromFile(file){\n  if(!file || !file.type || !file.type.startsWith('image/')) throw new Error("Le fichier déposé n’est pas une image.");\n  return await normalizeImageDataURL(await fileToDataURL(file));\n}\nasync function normalizeImageDataURL(dataURL){\n  return new Promise((resolve,reject)=>{\n    const img=new Image();\n    img.onload=()=>{\n      const W=1200,H=900,canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H;\n      const ctx=canvas.getContext('2d'); ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);\n      const scale=Math.min(W/img.naturalWidth,H/img.naturalHeight,1);\n      const w=Math.max(1,Math.round(img.naturalWidth*scale)),h=Math.max(1,Math.round(img.naturalHeight*scale));\n      ctx.drawImage(img,Math.round((W-w)/2),Math.round((H-h)/2),w,h);\n      resolve(canvas.toDataURL('image/jpeg',0.88));\n    }; img.onerror=()=>reject(new Error("Image illisible.")); img.src=dataURL;\n  });\n}\nasync function tryDroppedUrl(url){\n  const img=new Image(); img.crossOrigin='anonymous';\n  return new Promise((resolve,reject)=>{\n    img.onload=()=>{try{\n      const W=1200,H=900,canvas=document.createElement('canvas'); canvas.width=W;canvas.height=H;\n      const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);\n      const scale=Math.min(W/img.naturalWidth,H/img.naturalHeight,1),w=Math.round(img.naturalWidth*scale),h=Math.round(img.naturalHeight*scale);\n      ctx.drawImage(img,(W-w)/2,(H-h)/2,w,h); resolve(canvas.toDataURL('image/jpeg',0.88));\n    }catch(e){reject(e)}};\n    img.onerror=()=>reject(new Error("Le site empêche l’import direct.")); img.src=url;\n  });\n}\nasync function assignImageToCard(id,dataURL){const p=await getPhoto(id);if(!p)return;p.image=dataURL;p.updatedAt=Date.now();await putPhoto(p);await render()}\nfunction installDropZones(){\n document.querySelectorAll('.dropzone').forEach(zone=>{\n  const id=+zone.dataset.id;\n  ['dragenter','dragover'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.add('dragover');if(e.dataTransfer)e.dataTransfer.dropEffect='copy'}));\n  ['dragleave','dragend'].forEach(ev=>zone.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();zone.classList.remove('dragover')}));\n  zone.addEventListener('drop',async e=>{e.preventDefault();e.stopPropagation();zone.classList.remove('dragover');try{\n    const files=[...(e.dataTransfer?.files||[])],f=files.find(x=>x.type?.startsWith('image/'));\n    if(f){await assignImageToCard(id,await normalizeImageFromFile(f));return}\n    let url='',uri=e.dataTransfer?.getData('text/uri-list')||'',hd=e.dataTransfer?.getData('text/html')||'';\n    if(uri)url=uri.split(/\\r?\\n/).find(x=>x&&!x.startsWith('#'))||'';\n    if(!url&&hd){const d=new DOMParser().parseFromString(hd,'text/html');url=d.querySelector('img')?.src||''}\n    if(!url)url=e.dataTransfer?.getData('text/plain')||'';\n    if(/^https?:\\/\\//i.test(url)){try{await assignImageToCard(id,await tryDroppedUrl(url))}catch(err){alert("Ce site bloque la copie directe de l’image. Enregistrez-la d’abord sur l’ordinateur, puis glissez le fichier sur la carte.")}return}\n    alert("Aucune image exploitable détectée.");\n  }catch(err){alert("Import impossible : "+err.message)}});\n  zone.addEventListener('click',()=>{const picker=document.createElement('input');picker.type='file';picker.accept='image/*';picker.onchange=async()=>{const f=picker.files?.[0];if(f)try{await assignImageToCard(id,await normalizeImageFromFile(f))}catch(err){alert(err.message)}};picker.click()});\n });\n}\n
 async function render(){
   const q=normalize(document.querySelector('#search').value.trim());
   let items=(await allPhotos()).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
@@ -230,7 +238,7 @@ async function render(){
     const el=document.createElement('article');
     el.className='card';
     el.innerHTML=`
-      <div class="thumb">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:'Aucune image'}</div>
+      <div class="thumb dropzone" data-id="${p.id}" title="Déposez une image ici ou cliquez pour choisir un fichier">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:`<div class="no-photo">Aucune photo<small>Déposez une image ici</small></div>`}</div>
       <div class="card-body">
         <div class="title">${esc(p.name)}</div>
         <div class="meta">${esc(p.category||'Sans catégorie')}${p.vehicle?' · '+esc(p.vehicle):''}</div>
@@ -249,6 +257,7 @@ async function render(){
       await deletePhoto(+b.dataset.id); render();
     }
   });
+  installDropZones();
 }
 function resetForm(){
   editingId=null; pendingImage=null;
@@ -277,7 +286,7 @@ document.querySelector('#cancelBtn').onclick=()=>document.querySelector('#photoD
 document.querySelector('#search').addEventListener('input',render);
 document.querySelector('#imageFile').addEventListener('change',async e=>{
   const f=e.target.files?.[0]; if(!f)return;
-  pendingImage=await fileToDataURL(f); showImage(pendingImage);
+  pendingImage=await normalizeImageFromFile(f); showImage(pendingImage);
 });
 document.querySelector('#photoForm').addEventListener('submit',async e=>{
   e.preventDefault();
