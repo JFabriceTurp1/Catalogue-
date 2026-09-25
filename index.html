@@ -1,5 +1,5 @@
 <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Photothèque Atelier V9</title>
+<title>Photothèque Atelier V11</title>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Arial;background:#f3f6fa;color:#17324d}
 header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #dbe4ef;padding:14px}
@@ -65,9 +65,15 @@ main{max-width:1250px;margin:auto;padding:16px} .count{margin:0 0 12px;color:#66
   .card .actions{grid-template-columns:1fr}
   .card .actions button:last-child:nth-child(odd){grid-column:auto}
 }
+
+.progressBoxV10{border:2px solid #1976d2;box-shadow:0 3px 12px rgba(0,0,0,.08)}
+.progressTitle{font-size:14px;font-weight:900;margin-bottom:8px;color:#0b3566;text-transform:uppercase;letter-spacing:.02em}
+.progressBoxV10 .progressLine{font-size:16px;align-items:center}
+.progressBoxV10 #photoPct{font-size:20px;color:#0b5cad}
+.progressRemaining{margin-top:7px;font-size:12px;color:#596674;font-weight:700}
 </style></head><body>
 <header><div class="head"><h1>Photothèque Atelier</h1>
-<div class="sub">Catalogue évolutif • cartes homogènes • duplication de variantes • compteur • .photo • double-clic Windows</div>
+<div class="sub">Catalogue classé • modifier/dupliquer les cartes • avancement photos • .photo • double-clic Windows</div>
 <div class="tools"><input id="q" placeholder="Rechercher une pièce…"><select id="cat"><option value="">Toutes les catégories</option><option>Accessoires moteur</option><option>Admission / alimentation</option><option>Alimentation carburant</option><option>Allumage / préchauffage</option><option>Carrosserie</option><option>Climatisation / habitacle</option><option>Diagnostic</option><option>Distribution</option><option>Entretien moteur</option><option>Essuyage / lavage</option><option>Freinage</option><option>Hybride / électrique</option><option>Motorisation</option><option>Refroidissement</option><option>Roues / pneumatiques</option><option>Suralimentation</option><option>Suspension / direction</option><option>Transmission</option><option>Échappement / dépollution</option><option>Éclairage / signalisation</option><option>Électricité / électronique</option></select><button id="newCard">+ Nouvelle carte</button><button id="export">Enregistrer la photothèque</button><label class="btn" for="import">Ouvrir une photothèque</label><input id="import" type="file" accept=".photo,.json,application/json" hidden></div></div></header>
 <main><div class="notice">Déposez une image directement sur la carte correspondante. Cliquez sur une photo pour l’agrandir. « Enregistrer la photothèque » crée un fichier .photo contenant le catalogue et toutes vos images ; « Ouvrir une photothèque » recharge ce fichier sur un autre poste.</div>
 <div class="count"><b id="n"></b> éléments affichés sur 162.</div><div id="grid" class="grid"></div></main>
@@ -85,12 +91,12 @@ function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;',
 function render(){
   updateCounter();
  const q=norm(document.querySelector('#q').value), c=document.querySelector('#cat').value;
- const list=data.filter(x=>(!c||x.category===c)&&(!q||norm(x.name+' '+x.category).includes(q)));
+ const list=sortedCatalogue(data.filter(x=>(!c||x.category===c)&&(!q||norm(x.name+' '+x.category).includes(q))));
  document.querySelector('#n').textContent=list.length;
  const g=document.querySelector('#grid'); g.innerHTML='';
  for(const p of list){
   const card=document.createElement('div');card.className='card';
-  card.innerHTML=`<div class="photo" data-id="${p.id}">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:`<div class="placeholder">Aucune photo<small>Glisser-déposer ici</small></div>`}</div><div class="body"><div class="name">${esc(p.name)}</div><div class="cat">${esc(p.category)}</div><div class="actions"><button data-pick="${p.id}">Choisir une photo</button><button data-dup="${p.id}" title="Créer une variante de cette carte">Dupliquer</button>${p.image?`<button class="remove" data-rm="${p.id}">Retirer</button>`:''}</div></div>`;
+  card.innerHTML=`<div class="photo" data-id="${p.id}">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:`<div class="placeholder">Aucune photo<small>Glisser-déposer ici</small></div>`}</div><div class="body"><div class="name">${esc(p.name)}</div><div class="cat">${esc(p.category)}</div><div class="actions"><button data-pick="${p.id}">Choisir une photo</button><button data-edit="${p.id}" title="Modifier cette carte">Modifier</button><button data-dup="${p.id}" title="Créer une variante de cette carte">Dupliquer</button>${p.image?`<button class="remove" data-rm="${p.id}">Retirer</button>`:''}</div></div>`;
   g.appendChild(card);
  }
  bind();
@@ -151,9 +157,12 @@ function updateCounter(){
   const filled=data.filter(p=>!!p.image).length;
   const pct=total?Math.round((filled/total)*100):0;
   const a=document.getElementById('photoCount'), b=document.getElementById('photoPct'), c=document.getElementById('progressFill');
-  if(a)a.textContent=`Photos ajoutées : ${filled} / ${total}`;
+  if(a)a.textContent=`${filled} photo${filled>1?'s':''} présente${filled>1?'s':''} / ${total} carte${total>1?'s':''}`;
   if(b)b.textContent=`${pct} %`;
   if(c)c.style.width=pct+'%';
+  const r=document.getElementById('photoRemaining');
+  const remaining=Math.max(0,total-filled);
+  if(r)r.textContent=remaining?`${remaining} photo${remaining>1?'s':''} encore à ajouter`:'Photothèque complète';
 }
 function allCategories(){
   return [...new Set(data.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
@@ -216,7 +225,11 @@ async function createNewCard(){
   };
   const f=document.getElementById('ncPhoto').files[0];
   if(f) item.image=await processImage(f);
-  data.push(item); save(); refreshCategorySelectors(); render(); closeCardModal();
+  data.push(item); save(); refreshCategorySelectors();
+  const q=document.querySelector('#q'), cat=document.querySelector('#cat');
+  if(q) q.value='';
+  if(cat){cat.value=item.category;}
+  render(); closeCardModal();
 }
 
 
@@ -241,11 +254,80 @@ function duplicateCard(id){
   copy.custom=true;
   copy.duplicatedFrom=source.id;
   data.push(copy);
-  save(); refreshCategorySelectors(); render();
-  setTimeout(()=>{
-    const q=document.querySelector('#q');
-    if(q){q.value=copy.name;render()}
-  },0);
+  save(); refreshCategorySelectors();
+  const q=document.querySelector('#q'), cat=document.querySelector('#cat');
+  if(q) q.value='';
+  if(cat) cat.value=copy.category;
+  render();
+}
+
+
+let editModalBound=false;
+let editRemovePhoto=false;
+function bindEditModalControls(){
+  if(editModalBound) return;
+  const modal=document.getElementById('editModal');
+  if(!modal) return;
+  document.getElementById('closeEditModal').onclick=closeEditModal;
+  document.getElementById('cancelEdit').onclick=closeEditModal;
+  document.getElementById('saveEdit').onclick=saveEditedCard;
+  document.getElementById('removeEditPhoto').onclick=()=>{
+    editRemovePhoto=true;
+    document.getElementById('edPhoto').value='';
+    document.getElementById('edPhotoState').textContent='La photo sera retirée lors de l’enregistrement.';
+  };
+  document.getElementById('edCategory').onchange=e=>{
+    document.getElementById('edNewCatWrap').style.display=e.target.value==='__NEW__'?'block':'none';
+  };
+  modal.addEventListener('click',e=>{if(e.target.id==='editModal')closeEditModal()});
+  editModalBound=true;
+}
+function openEditModal(id){
+  bindEditModalControls();
+  const p=data.find(x=>String(x.id)===String(id));
+  if(!p) return;
+  const sel=document.getElementById('edCategory');
+  const cats=allCategories();
+  sel.innerHTML=cats.map(c=>`<option>${esc(c)}</option>`).join('')+'<option value="__NEW__">+ Créer une nouvelle catégorie…</option>';
+  document.getElementById('editId').value=String(p.id);
+  document.getElementById('edName').value=p.name||'';
+  document.getElementById('edVehicle').value=p.vehicle||'';
+  document.getElementById('edKeywords').value=p.keywords||'';
+  document.getElementById('edNotes').value=p.notes||'';
+  document.getElementById('edNewCategory').value='';
+  document.getElementById('edNewCatWrap').style.display='none';
+  document.getElementById('edPhoto').value='';
+  editRemovePhoto=false;
+  if([...sel.options].some(o=>o.value===p.category)) sel.value=p.category;
+  document.getElementById('edPhotoState').textContent=p.image?'Photo actuelle conservée si vous n’en choisissez pas une autre.':'Aucune photo actuellement.';
+  document.getElementById('removeEditPhoto').style.display=p.image?'inline-block':'none';
+  document.getElementById('editModal').style.display='flex';
+}
+function closeEditModal(){document.getElementById('editModal').style.display='none'}
+async function saveEditedCard(){
+  const id=document.getElementById('editId').value;
+  const p=data.find(x=>String(x.id)===String(id));
+  if(!p) return;
+  const name=document.getElementById('edName').value.trim();
+  if(!name){alert('Indiquez le nom de la pièce.');return}
+  let category=document.getElementById('edCategory').value;
+  if(category==='__NEW__'){
+    category=document.getElementById('edNewCategory').value.trim();
+    if(!category){alert('Indiquez le nom de la nouvelle catégorie.');return}
+  }
+  p.name=name;
+  p.category=category||'Autres';
+  p.vehicle=document.getElementById('edVehicle').value.trim();
+  p.keywords=document.getElementById('edKeywords').value.trim();
+  p.notes=document.getElementById('edNotes').value.trim();
+  if(editRemovePhoto) p.image='';
+  const f=document.getElementById('edPhoto').files[0];
+  if(f) p.image=await imageTo43(f);
+  save(); refreshCategorySelectors();
+  const q=document.querySelector('#q'), cat=document.querySelector('#cat');
+  if(q) q.value='';
+  if(cat) cat.value=p.category;
+  render(); closeEditModal();
 }
 
 function bind(){
@@ -258,6 +340,7 @@ function bind(){
   z.ondragleave=()=>z.classList.remove('drag');
   z.ondrop=e=>{e.preventDefault();z.classList.remove('drag');const f=[...(e.dataTransfer.files||[])].find(f=>f.type.startsWith('image/'));if(f)setImage(id,f);else alert("Ce site ne transmet pas directement le fichier image. Enregistrez l'image sur l'ordinateur puis déposez-la ici.")};
  });
+ document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openEditModal(b.dataset.edit));
  document.querySelectorAll('[data-dup]').forEach(b=>b.onclick=()=>duplicateCard(b.dataset.dup));
  document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{targetId=b.dataset.pick;document.querySelector('#picker').click()});
  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{const p=data.find(x=>String(x.id)===String(b.dataset.rm));if(p&&confirm('Retirer cette photo ?')){p.image=null;save();render()}});
@@ -284,6 +367,33 @@ autoOpenFromLauncher();
       <div class="full"><label>Photo initiale</label><input id="ncPhoto" type="file" accept="image/*"></div>
     </div>
     <div class="modalActions"><button id="cancelCard" type="button">Annuler</button><button id="createCard" type="button">Créer la carte</button></div>
+  </div>
+</div>
+
+
+<div id="editModal" class="lightbox" style="display:none">
+  <div style="background:white;color:#17212b;width:min(680px,92vw);max-height:90vh;overflow:auto;border-radius:16px;padding:20px;position:relative">
+    <button id="closeEditModal" type="button" style="position:absolute;right:12px;top:10px;font-size:24px;border:0;background:transparent;cursor:pointer">×</button>
+    <h2 style="margin-top:0">Modifier la carte</h2>
+    <input id="editId" type="hidden">
+    <div class="formgrid">
+      <div><label>Nom de la pièce *</label><input id="edName"></div>
+      <div><label>Catégorie</label><select id="edCategory"></select></div>
+      <div class="full" id="edNewCatWrap" style="display:none"><label>Nouvelle catégorie *</label><input id="edNewCategory" placeholder="Nom de la nouvelle catégorie"></div>
+      <div><label>Véhicule / support</label><input id="edVehicle"></div>
+      <div><label>Mots-clés</label><input id="edKeywords"></div>
+      <div class="full"><label>Notes</label><textarea id="edNotes"></textarea></div>
+      <div class="full">
+        <label>Photo</label>
+        <div id="edPhotoState" style="font-size:13px;margin-bottom:8px"></div>
+        <input id="edPhoto" type="file" accept="image/*">
+      </div>
+    </div>
+    <div class="modalActions">
+      <button id="removeEditPhoto" type="button">Retirer la photo</button>
+      <button id="cancelEdit" type="button">Annuler</button>
+      <button id="saveEdit" type="button">Enregistrer les modifications</button>
+    </div>
   </div>
 </div>
 
