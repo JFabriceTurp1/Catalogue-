@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Photothèque Atelier</title>
+<style>
+:root{
+  --bg:#f4f7fb; --card:#ffffff; --text:#17324d; --muted:#6b7a90;
+  --accent:#2563eb; --accent2:#0ea5e9; --danger:#dc2626; --ok:#16a34a;
+  --border:#dbe4ef; --shadow:0 10px 28px rgba(23,50,77,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;z-index:5;background:rgba(244,247,251,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.wrap{max-width:1200px;margin:auto;padding:16px}
+h1{margin:0;font-size:clamp(1.35rem,4vw,2rem)}
+.sub{color:var(--muted);font-size:.95rem;margin-top:4px}
+.toolbar{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;margin-top:14px}
+input,select,textarea,button{font:inherit}
+input[type="search"],input[type="text"],select,textarea{
+ width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:12px;background:#fff;color:var(--text)
+}
+button,.btn{
+ border:0;border-radius:12px;padding:11px 14px;background:var(--accent);color:#fff;font-weight:700;cursor:pointer
+}
+button.secondary,.btn.secondary{background:#fff;color:var(--text);border:1px solid var(--border)}
+button.danger{background:var(--danger)}
+button:disabled{opacity:.5;cursor:not-allowed}
+main{max-width:1200px;margin:auto;padding:18px 16px 40px}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.pill{background:#fff;border:1px solid var(--border);border-radius:999px;padding:8px 12px;box-shadow:var(--shadow);font-size:.92rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.thumb{aspect-ratio:4/3;background:#e8eef6;display:grid;place-items:center;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.card-body{padding:13px;display:flex;flex-direction:column;gap:8px;flex:1}
+.title{font-weight:800;font-size:1.05rem}
+.meta{color:var(--muted);font-size:.88rem}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:.78rem;padding:4px 7px;background:#eef5ff;border:1px solid #d5e7ff;border-radius:999px}
+.card-actions{display:flex;gap:8px;margin-top:auto}
+.card-actions button{padding:8px 10px;font-size:.88rem}
+.empty{padding:40px 20px;text-align:center;color:var(--muted);border:2px dashed var(--border);border-radius:16px;background:#fff}
+dialog{width:min(760px,calc(100% - 24px));border:0;border-radius:18px;padding:0;box-shadow:0 24px 70px rgba(0,0,0,.2)}
+dialog::backdrop{background:rgba(15,23,42,.45)}
+.modal-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-body{padding:18px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+label{font-size:.86rem;font-weight:700;display:block;margin-bottom:5px}
+.preview{width:100%;aspect-ratio:16/9;border:2px dashed var(--border);border-radius:14px;background:#f8fafc;display:grid;place-items:center;overflow:hidden;color:var(--muted)}
+.preview img{width:100%;height:100%;object-fit:contain;background:#fff}
+.modal-foot{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+.note{font-size:.82rem;color:var(--muted);line-height:1.4}
+.hidden{display:none!important}
+@media(max-width:760px){
+ .toolbar{grid-template-columns:1fr 1fr}
+ .toolbar .search{grid-column:1/-1}
+ .form-grid{grid-template-columns:1fr}
+ .form-grid .full{grid-column:auto}
+ .wrap,main{padding-left:12px;padding-right:12px}
+ button,.btn{min-height:44px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Photothèque Atelier</h1>
+    <div class="sub">Base locale de photos — catalogue prérempli de pièces et systèmes automobiles</div>
+    <div class="toolbar">
+      <input id="search" class="search" type="search" placeholder="Rechercher : disque de frein, Clio, freinage, usure…">
+      <button id="addBtn">+ Ajouter une photo</button>
+      <button id="exportBtn" class="secondary">Exporter la base</button>
+      <label class="btn secondary" for="importFile">Importer</label>
+      <input id="importFile" type="file" accept=".json,application/json" class="hidden">
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="stats">
+    <span class="pill"><b id="count">0</b> photo(s)</span>
+    <span class="pill">Stockage : <b>local sur cet appareil</b></span>
+    <span class="pill">Sauvegarde : <b>JSON</b></span>
+  </div>
+  <div id="grid" class="grid"></div>
+  <div id="empty" class="empty hidden">Aucun élément ne correspond à votre recherche.</div>
+</main>
+
+<dialog id="photoDialog">
+  <form id="photoForm">
+    <div class="modal-head">
+      <strong id="modalTitle">Ajouter une photo</strong>
+      <button type="button" class="secondary" id="closeBtn">Fermer</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="full">
+          <label for="imageFile">Photo</label>
+          <input id="imageFile" type="file" accept="image/*">
+        </div>
+        <div class="full">
+          <div class="preview" id="preview">Aperçu de la photo</div>
+        </div>
+        <div>
+          <label for="name">Nom / pièce *</label>
+          <input id="name" type="text" placeholder="Ex. Disque de frein avant" required>
+        </div>
+        <div>
+          <label for="category">Catégorie</label>
+          <select id="category">
+            <option value="">— Choisir —</option>
+            <option>Entretien moteur</option>
+            <option>Admission / alimentation</option>
+            <option>Alimentation carburant</option>
+            <option>Allumage / préchauffage</option>
+            <option>Distribution</option>
+            <option>Accessoires moteur</option>
+            <option>Refroidissement</option>
+            <option>Freinage</option>
+            <option>Suspension / direction</option>
+            <option>Roues / pneumatiques</option>
+            <option>Transmission</option>
+            <option>Électricité / électronique</option>
+            <option>Éclairage / signalisation</option>
+            <option>Échappement / dépollution</option>
+            <option>Climatisation / habitacle</option>
+            <option>Essuyage / lavage</option>
+            <option>Motorisation</option>
+            <option>Suralimentation</option>
+            <option>Diagnostic</option>
+            <option>Carrosserie</option>
+            <option>Hybride / électrique</option>
+            <option>Outillage</option>
+            <option>Véhicule</option>
+            <option>Autre</option>
+          </select>
+        </div>
+        <div>
+          <label for="vehicle">Véhicule / support</label>
+          <input id="vehicle" type="text" placeholder="Ex. Renault Clio IV">
+        </div>
+        <div>
+          <label for="keywords">Mots-clés</label>
+          <input id="keywords" type="text" placeholder="Ex. disque, frein, usure, avant">
+        </div>
+        <div class="full">
+          <label for="notes">Notes</label>
+          <textarea id="notes" rows="3" placeholder="Informations utiles, défaut visible, contexte pédagogique…"></textarea>
+        </div>
+        <div class="full note">
+          Les images sont enregistrées dans la base locale du navigateur. Utilisez régulièrement « Exporter la base » pour conserver une copie de sécurité.
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="secondary" id="cancelBtn">Annuler</button>
+      <button type="submit">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const DB_NAME='phototheque_atelier_db', STORE='photos', DB_VERSION=1;
+let db, editingId=null, pendingImage=null;
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(DB_NAME,DB_VERSION);
+    req.onupgradeneeded=()=> {
+      const d=req.result;
+      if(!d.objectStoreNames.contains(STORE)){
+        const s=d.createObjectStore(STORE,{keyPath:'id',autoIncrement:true});
+        s.createIndex('name','name',{unique:false});
+        s.createIndex('category','category',{unique:false});
+      }
+    };
+    req.onsuccess=()=>{db=req.result;resolve(db)};
+    req.onerror=()=>reject(req.error);
+  });
+}
+function tx(mode='readonly'){ return db.transaction(STORE,mode).objectStore(STORE); }
+function allPhotos(){
+  return new Promise((resolve,reject)=>{
+    const r=tx().getAll(); r.onsuccess=()=>resolve(r.result||[]); r.onerror=()=>reject(r.error);
+  });
+}
+function putPhoto(obj){
+  return new Promise((resolve,reject)=>{
+    const r=tx('readwrite').put(obj); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error);
+  });
+}
+function addPhoto(obj){
+  return new Promise((resolve,reject)=>{
+    const r=tx('readwrite').add(obj); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error);
+  });
+}
+function deletePhoto(id){
+  return new Promise((resolve,reject)=>{
+    const r=tx('readwrite').delete(id); r.onsuccess=()=>resolve(); r.onerror=()=>reject(r.error);
+  });
+}
+function getPhoto(id){
+  return new Promise((resolve,reject)=>{
+    const r=tx().get(id); r.onsuccess=()=>resolve(r.result); r.onerror=()=>reject(r.error);
+  });
+}
+function fileToDataURL(file){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=reject; reader.readAsDataURL(file);
+  });
+}
+function esc(s=''){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function normalize(s=''){return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+
+async function render(){
+  const q=normalize(document.querySelector('#search').value.trim());
+  let items=(await allPhotos()).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  if(q){
+    items=items.filter(p=>normalize([p.name,p.category,p.vehicle,p.keywords,p.notes].join(' ')).includes(q));
+  }
+  document.querySelector('#count').textContent=items.length;
+  const grid=document.querySelector('#grid'), empty=document.querySelector('#empty');
+  grid.innerHTML='';
+  empty.classList.toggle('hidden',items.length!==0);
+  for(const p of items){
+    const tags=(p.keywords||'').split(',').map(x=>x.trim()).filter(Boolean).slice(0,8);
+    const el=document.createElement('article');
+    el.className='card';
+    el.innerHTML=`
+      <div class="thumb">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:'Aucune image'}</div>
+      <div class="card-body">
+        <div class="title">${esc(p.name)}</div>
+        <div class="meta">${esc(p.category||'Sans catégorie')}${p.vehicle?' · '+esc(p.vehicle):''}</div>
+        <div class="tags">${tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+        ${p.notes?`<div class="meta">${esc(p.notes)}</div>`:''}
+        <div class="card-actions">
+          <button class="secondary edit" data-id="${p.id}">Modifier</button>
+          <button class="danger del" data-id="${p.id}">Supprimer</button>
+        </div>
+      </div>`;
+    grid.appendChild(el);
+  }
+  document.querySelectorAll('.edit').forEach(b=>b.onclick=()=>openEdit(+b.dataset.id));
+  document.querySelectorAll('.del').forEach(b=>b.onclick=async()=> {
+    if(confirm('Supprimer cette photo de la photothèque ?')){
+      await deletePhoto(+b.dataset.id); render();
+    }
+  });
+}
+function resetForm(){
+  editingId=null; pendingImage=null;
+  document.querySelector('#photoForm').reset();
+  document.querySelector('#preview').innerHTML='Aperçu de la photo';
+  document.querySelector('#modalTitle').textContent='Ajouter une photo';
+}
+function showImage(data){
+  document.querySelector('#preview').innerHTML=data?`<img src="${data}" alt="Aperçu">`:'Aperçu de la photo';
+}
+async function openEdit(id){
+  resetForm(); editingId=id;
+  const p=await getPhoto(id);
+  document.querySelector('#modalTitle').textContent='Modifier la photo';
+  document.querySelector('#name').value=p.name||'';
+  document.querySelector('#category').value=p.category||'';
+  document.querySelector('#vehicle').value=p.vehicle||'';
+  document.querySelector('#keywords').value=p.keywords||'';
+  document.querySelector('#notes').value=p.notes||'';
+  pendingImage=p.image||null; showImage(pendingImage);
+  document.querySelector('#photoDialog').showModal();
+}
+document.querySelector('#addBtn').onclick=()=>{resetForm();document.querySelector('#photoDialog').showModal()};
+document.querySelector('#closeBtn').onclick=()=>document.querySelector('#photoDialog').close();
+document.querySelector('#cancelBtn').onclick=()=>document.querySelector('#photoDialog').close();
+document.querySelector('#search').addEventListener('input',render);
+document.querySelector('#imageFile').addEventListener('change',async e=>{
+  const f=e.target.files?.[0]; if(!f)return;
+  pendingImage=await fileToDataURL(f); showImage(pendingImage);
+});
+document.querySelector('#photoForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const obj={
+    name:document.querySelector('#name').value.trim(),
+    category:document.querySelector('#category').value,
+    vehicle:document.querySelector('#vehicle').value.trim(),
+    keywords:document.querySelector('#keywords').value.trim(),
+    notes:document.querySelector('#notes').value.trim(),
+    image:pendingImage,
+    updatedAt:Date.now()
+  };
+  if(editingId){obj.id=editingId; const old=await getPhoto(editingId); obj.createdAt=old.createdAt||Date.now(); await putPhoto(obj)}
+  else{obj.createdAt=Date.now(); await addPhoto(obj)}
+  document.querySelector('#photoDialog').close(); render();
+});
+document.querySelector('#exportBtn').onclick=async()=>{
+  const data={app:'Phototheque Atelier',version:1,exportedAt:new Date().toISOString(),photos:await allPhotos()};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='Phototheque_Atelier_Sauvegarde.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+document.querySelector('#importFile').addEventListener('change',async e=>{
+  const f=e.target.files?.[0]; if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!Array.isArray(data.photos)) throw new Error('Format invalide');
+    if(!confirm(`Importer ${data.photos.length} photo(s) ? Les doublons éventuels seront ajoutés.`)) return;
+    for(const p of data.photos){
+      const copy={...p}; delete copy.id; copy.updatedAt=Date.now(); await addPhoto(copy);
+    }
+    render(); alert('Import terminé.');
+  }catch(err){alert('Impossible d’importer ce fichier : '+err.message)}
+  e.target.value='';
+});
+
+const STARTER_LIBRARY = [{"name": "Filtre à huile", "category": "Entretien moteur", "vehicle": "", "keywords": "entretien, vidange, lubrification, filtre", "notes": "", "image": null}, {"name": "Huile moteur", "category": "Entretien moteur", "vehicle": "", "keywords": "entretien, vidange, lubrification", "notes": "", "image": null}, {"name": "Bouchon de vidange", "category": "Entretien moteur", "vehicle": "", "keywords": "vidange, carter, étanchéité", "notes": "", "image": null}, {"name": "Joint de bouchon de vidange", "category": "Entretien moteur", "vehicle": "", "keywords": "vidange, joint, étanchéité", "notes": "", "image": null}, {"name": "Carter d’huile", "category": "Motorisation", "vehicle": "", "keywords": "lubrification, carter, moteur", "notes": "", "image": null}, {"name": "Jauge à huile", "category": "Motorisation", "vehicle": "", "keywords": "niveau, huile, moteur", "notes": "", "image": null}, {"name": "Pompe à huile", "category": "Motorisation", "vehicle": "", "keywords": "lubrification, pression huile, moteur", "notes": "", "image": null}, {"name": "Capteur de pression d’huile", "category": "Électricité / électronique", "vehicle": "", "keywords": "huile, capteur, pression", "notes": "", "image": null}, {"name": "Filtre à air", "category": "Admission / alimentation", "vehicle": "", "keywords": "entretien, admission, air, filtre", "notes": "", "image": null}, {"name": "Boîtier de filtre à air", "category": "Admission / alimentation", "vehicle": "", "keywords": "admission, air, filtre", "notes": "", "image": null}, {"name": "Débitmètre d’air", "category": "Admission / alimentation", "vehicle": "", "keywords": "admission, capteur, air", "notes": "", "image": null}, {"name": "Boîtier papillon", "category": "Admission / alimentation", "vehicle": "", "keywords": "admission, papillon, moteur", "notes": "", "image": null}, {"name": "Collecteur d’admission", "category": "Admission / alimentation", "vehicle": "", "keywords": "admission, moteur", "notes": "", "image": null}, {"name": "Durite d’admission", "category": "Admission / alimentation", "vehicle": "", "keywords": "admission, air, durite", "notes": "", "image": null}, {"name": "Filtre à carburant", "category": "Alimentation carburant", "vehicle": "", "keywords": "entretien, carburant, filtre", "notes": "", "image": null}, {"name": "Filtre à gazole", "category": "Alimentation carburant", "vehicle": "", "keywords": "diesel, entretien, filtre", "notes": "", "image": null}, {"name": "Pompe à carburant", "category": "Alimentation carburant", "vehicle": "", "keywords": "carburant, pompe, alimentation", "notes": "", "image": null}, {"name": "Pompe haute pression", "category": "Alimentation carburant", "vehicle": "", "keywords": "injection, haute pression, diesel, essence", "notes": "", "image": null}, {"name": "Injecteur essence", "category": "Alimentation carburant", "vehicle": "", "keywords": "injection, essence, injecteur", "notes": "", "image": null}, {"name": "Injecteur diesel", "category": "Alimentation carburant", "vehicle": "", "keywords": "injection, diesel, injecteur", "notes": "", "image": null}, {"name": "Rampe d’injection", "category": "Alimentation carburant", "vehicle": "", "keywords": "injection, carburant, rampe", "notes": "", "image": null}, {"name": "Réservoir de carburant", "category": "Alimentation carburant", "vehicle": "", "keywords": "carburant, réservoir", "notes": "", "image": null}, {"name": "Bougie d’allumage", "category": "Allumage / préchauffage", "vehicle": "", "keywords": "entretien, essence, allumage, bougie", "notes": "", "image": null}, {"name": "Bobine d’allumage", "category": "Allumage / préchauffage", "vehicle": "", "keywords": "essence, allumage, bobine", "notes": "", "image": null}, {"name": "Bougie de préchauffage", "category": "Allumage / préchauffage", "vehicle": "", "keywords": "diesel, préchauffage, bougie", "notes": "", "image": null}, {"name": "Boîtier de préchauffage", "category": "Allumage / préchauffage", "vehicle": "", "keywords": "diesel, préchauffage", "notes": "", "image": null}, {"name": "Courroie de distribution", "category": "Distribution", "vehicle": "", "keywords": "distribution, courroie, entretien", "notes": "", "image": null}, {"name": "Chaîne de distribution", "category": "Distribution", "vehicle": "", "keywords": "distribution, chaîne, moteur", "notes": "", "image": null}, {"name": "Galet tendeur de distribution", "category": "Distribution", "vehicle": "", "keywords": "distribution, galet, courroie", "notes": "", "image": null}, {"name": "Galet enrouleur de distribution", "category": "Distribution", "vehicle": "", "keywords": "distribution, galet, courroie", "notes": "", "image": null}, {"name": "Pompe à eau", "category": "Refroidissement", "vehicle": "", "keywords": "distribution, refroidissement, pompe", "notes": "", "image": null}, {"name": "Poulie d’arbre à cames", "category": "Distribution", "vehicle": "", "keywords": "distribution, arbre à cames", "notes": "", "image": null}, {"name": "Poulie de vilebrequin", "category": "Distribution", "vehicle": "", "keywords": "distribution, vilebrequin, poulie", "notes": "", "image": null}, {"name": "Courroie d’accessoires", "category": "Accessoires moteur", "vehicle": "", "keywords": "courroie, accessoires, entretien", "notes": "", "image": null}, {"name": "Galet tendeur d’accessoires", "category": "Accessoires moteur", "vehicle": "", "keywords": "courroie, galet, accessoires", "notes": "", "image": null}, {"name": "Galet enrouleur d’accessoires", "category": "Accessoires moteur", "vehicle": "", "keywords": "courroie, galet, accessoires", "notes": "", "image": null}, {"name": "Poulie damper", "category": "Accessoires moteur", "vehicle": "", "keywords": "vilebrequin, poulie, accessoires", "notes": "", "image": null}, {"name": "Liquide de refroidissement", "category": "Refroidissement", "vehicle": "", "keywords": "entretien, liquide, refroidissement", "notes": "", "image": null}, {"name": "Radiateur moteur", "category": "Refroidissement", "vehicle": "", "keywords": "radiateur, refroidissement", "notes": "", "image": null}, {"name": "Vase d’expansion", "category": "Refroidissement", "vehicle": "", "keywords": "liquide, refroidissement", "notes": "", "image": null}, {"name": "Bouchon de vase d’expansion", "category": "Refroidissement", "vehicle": "", "keywords": "liquide, pression", "notes": "", "image": null}, {"name": "Thermostat / calorstat", "category": "Refroidissement", "vehicle": "", "keywords": "température, refroidissement", "notes": "", "image": null}, {"name": "Sonde de température moteur", "category": "Refroidissement", "vehicle": "", "keywords": "capteur, température", "notes": "", "image": null}, {"name": "Motoventilateur", "category": "Refroidissement", "vehicle": "", "keywords": "ventilateur, radiateur", "notes": "", "image": null}, {"name": "Durite supérieure de radiateur", "category": "Refroidissement", "vehicle": "", "keywords": "durite, radiateur", "notes": "", "image": null}, {"name": "Durite inférieure de radiateur", "category": "Refroidissement", "vehicle": "", "keywords": "durite, radiateur", "notes": "", "image": null}, {"name": "Plaquettes de frein avant", "category": "Freinage", "vehicle": "", "keywords": "frein, plaquette, entretien, avant", "notes": "", "image": null}, {"name": "Plaquettes de frein arrière", "category": "Freinage", "vehicle": "", "keywords": "frein, plaquette, entretien, arrière", "notes": "", "image": null}, {"name": "Disque de frein avant", "category": "Freinage", "vehicle": "", "keywords": "frein, disque, avant", "notes": "", "image": null}, {"name": "Disque de frein arrière", "category": "Freinage", "vehicle": "", "keywords": "frein, disque, arrière", "notes": "", "image": null}, {"name": "Étrier de frein avant", "category": "Freinage", "vehicle": "", "keywords": "frein, étrier, avant", "notes": "", "image": null}, {"name": "Étrier de frein arrière", "category": "Freinage", "vehicle": "", "keywords": "frein, étrier, arrière", "notes": "", "image": null}, {"name": "Flexible de frein", "category": "Freinage", "vehicle": "", "keywords": "frein, flexible, hydraulique", "notes": "", "image": null}, {"name": "Canalisation de frein", "category": "Freinage", "vehicle": "", "keywords": "frein, canalisation, hydraulique", "notes": "", "image": null}, {"name": "Liquide de frein", "category": "Freinage", "vehicle": "", "keywords": "entretien, frein, liquide", "notes": "", "image": null}, {"name": "Maître-cylindre de frein", "category": "Freinage", "vehicle": "", "keywords": "frein, hydraulique, maître cylindre", "notes": "", "image": null}, {"name": "Servo-frein", "category": "Freinage", "vehicle": "", "keywords": "frein, assistance", "notes": "", "image": null}, {"name": "Tambour de frein", "category": "Freinage", "vehicle": "", "keywords": "frein, tambour, arrière", "notes": "", "image": null}, {"name": "Mâchoires de frein", "category": "Freinage", "vehicle": "", "keywords": "frein, mâchoire, tambour", "notes": "", "image": null}, {"name": "Cylindre de roue", "category": "Freinage", "vehicle": "", "keywords": "frein, tambour, hydraulique", "notes": "", "image": null}, {"name": "Câble de frein de stationnement", "category": "Freinage", "vehicle": "", "keywords": "frein à main, câble", "notes": "", "image": null}, {"name": "Capteur ABS", "category": "Freinage", "vehicle": "", "keywords": "ABS, capteur, roue", "notes": "", "image": null}, {"name": "Bloc hydraulique ABS", "category": "Freinage", "vehicle": "", "keywords": "ABS, hydraulique, calculateur", "notes": "", "image": null}, {"name": "Amortisseur avant", "category": "Suspension / direction", "vehicle": "", "keywords": "suspension, amortisseur, avant", "notes": "", "image": null}, {"name": "Amortisseur arrière", "category": "Suspension / direction", "vehicle": "", "keywords": "suspension, amortisseur, arrière", "notes": "", "image": null}, {"name": "Ressort de suspension", "category": "Suspension / direction", "vehicle": "", "keywords": "suspension, ressort", "notes": "", "image": null}, {"name": "Coupelle d’amortisseur", "category": "Suspension / direction", "vehicle": "", "keywords": "suspension, coupelle, amortisseur", "notes": "", "image": null}, {"name": "Butée d’amortisseur", "category": "Suspension / direction", "vehicle": "", "keywords": "suspension, butée", "notes": "", "image": null}, {"name": "Triangle de suspension", "category": "Suspension / direction", "vehicle": "", "keywords": "train roulant, triangle", "notes": "", "image": null}, {"name": "Rotule de suspension", "category": "Suspension / direction", "vehicle": "", "keywords": "train roulant, rotule", "notes": "", "image": null}, {"name": "Biellette de barre stabilisatrice", "category": "Suspension / direction", "vehicle": "", "keywords": "train roulant, biellette", "notes": "", "image": null}, {"name": "Barre stabilisatrice", "category": "Suspension / direction", "vehicle": "", "keywords": "train roulant, barre stabilisatrice", "notes": "", "image": null}, {"name": "Silentbloc de barre stabilisatrice", "category": "Suspension / direction", "vehicle": "", "keywords": "silentbloc, suspension", "notes": "", "image": null}, {"name": "Rotule de direction", "category": "Suspension / direction", "vehicle": "", "keywords": "direction, rotule", "notes": "", "image": null}, {"name": "Biellette de direction", "category": "Suspension / direction", "vehicle": "", "keywords": "direction, biellette", "notes": "", "image": null}, {"name": "Crémaillère de direction", "category": "Suspension / direction", "vehicle": "", "keywords": "direction, crémaillère", "notes": "", "image": null}, {"name": "Soufflet de direction", "category": "Suspension / direction", "vehicle": "", "keywords": "direction, soufflet", "notes": "", "image": null}, {"name": "Pompe de direction assistée", "category": "Suspension / direction", "vehicle": "", "keywords": "direction assistée, pompe", "notes": "", "image": null}, {"name": "Pneu", "category": "Roues / pneumatiques", "vehicle": "", "keywords": "pneu, roue, entretien", "notes": "", "image": null}, {"name": "Jante", "category": "Roues / pneumatiques", "vehicle": "", "keywords": "jante, roue", "notes": "", "image": null}, {"name": "Valve de pneu", "category": "Roues / pneumatiques", "vehicle": "", "keywords": "pneu, valve", "notes": "", "image": null}, {"name": "Capteur de pression TPMS", "category": "Roues / pneumatiques", "vehicle": "", "keywords": "TPMS, pneu, capteur", "notes": "", "image": null}, {"name": "Roulement de roue", "category": "Roues / pneumatiques", "vehicle": "", "keywords": "roulement, moyeu, roue", "notes": "", "image": null}, {"name": "Moyeu de roue", "category": "Roues / pneumatiques", "vehicle": "", "keywords": "moyeu, roue", "notes": "", "image": null}, {"name": "Kit d’embrayage", "category": "Transmission", "vehicle": "", "keywords": "embrayage, transmission", "notes": "", "image": null}, {"name": "Disque d’embrayage", "category": "Transmission", "vehicle": "", "keywords": "embrayage, disque", "notes": "", "image": null}, {"name": "Mécanisme d’embrayage", "category": "Transmission", "vehicle": "", "keywords": "embrayage, mécanisme", "notes": "", "image": null}, {"name": "Butée d’embrayage", "category": "Transmission", "vehicle": "", "keywords": "embrayage, butée", "notes": "", "image": null}, {"name": "Volant moteur", "category": "Transmission", "vehicle": "", "keywords": "embrayage, volant moteur", "notes": "", "image": null}, {"name": "Volant moteur bi-masse", "category": "Transmission", "vehicle": "", "keywords": "embrayage, bi-masse", "notes": "", "image": null}, {"name": "Câble d’embrayage", "category": "Transmission", "vehicle": "", "keywords": "embrayage, câble", "notes": "", "image": null}, {"name": "Émetteur d’embrayage", "category": "Transmission", "vehicle": "", "keywords": "embrayage, hydraulique", "notes": "", "image": null}, {"name": "Récepteur d’embrayage", "category": "Transmission", "vehicle": "", "keywords": "embrayage, hydraulique", "notes": "", "image": null}, {"name": "Boîte de vitesses manuelle", "category": "Transmission", "vehicle": "", "keywords": "boîte de vitesses, transmission", "notes": "", "image": null}, {"name": "Huile de boîte de vitesses", "category": "Transmission", "vehicle": "", "keywords": "entretien, huile, boîte", "notes": "", "image": null}, {"name": "Cardan / transmission", "category": "Transmission", "vehicle": "", "keywords": "cardan, transmission", "notes": "", "image": null}, {"name": "Soufflet de cardan", "category": "Transmission", "vehicle": "", "keywords": "cardan, soufflet", "notes": "", "image": null}, {"name": "Joint homocinétique", "category": "Transmission", "vehicle": "", "keywords": "cardan, transmission, joint", "notes": "", "image": null}, {"name": "Batterie 12 V", "category": "Électricité / électronique", "vehicle": "", "keywords": "batterie, démarrage, électricité", "notes": "", "image": null}, {"name": "Alternateur", "category": "Électricité / électronique", "vehicle": "", "keywords": "charge, alternateur", "notes": "", "image": null}, {"name": "Démarreur", "category": "Électricité / électronique", "vehicle": "", "keywords": "démarrage, démarreur", "notes": "", "image": null}, {"name": "Fusible", "category": "Électricité / électronique", "vehicle": "", "keywords": "fusible, protection", "notes": "", "image": null}, {"name": "Relais", "category": "Électricité / électronique", "vehicle": "", "keywords": "relais, commande", "notes": "", "image": null}, {"name": "Boîte à fusibles", "category": "Électricité / électronique", "vehicle": "", "keywords": "fusible, boîtier", "notes": "", "image": null}, {"name": "Capteur PMH", "category": "Électricité / électronique", "vehicle": "", "keywords": "capteur, vilebrequin, démarrage", "notes": "", "image": null}, {"name": "Capteur d’arbre à cames", "category": "Électricité / électronique", "vehicle": "", "keywords": "capteur, arbre à cames", "notes": "", "image": null}, {"name": "Sonde lambda", "category": "Électricité / électronique", "vehicle": "", "keywords": "échappement, sonde, lambda", "notes": "", "image": null}, {"name": "Capteur de pression d’admission", "category": "Électricité / électronique", "vehicle": "", "keywords": "MAP, pression, admission", "notes": "", "image": null}, {"name": "Ampoule de phare", "category": "Éclairage / signalisation", "vehicle": "", "keywords": "éclairage, ampoule, phare", "notes": "", "image": null}, {"name": "Projecteur avant", "category": "Éclairage / signalisation", "vehicle": "", "keywords": "éclairage, phare", "notes": "", "image": null}, {"name": "Feu arrière", "category": "Éclairage / signalisation", "vehicle": "", "keywords": "éclairage, feu arrière", "notes": "", "image": null}, {"name": "Feu stop", "category": "Éclairage / signalisation", "vehicle": "", "keywords": "éclairage, stop", "notes": "", "image": null}, {"name": "Clignotant", "category": "Éclairage / signalisation", "vehicle": "", "keywords": "signalisation, clignotant", "notes": "", "image": null}, {"name": "Collecteur d’échappement", "category": "Échappement / dépollution", "vehicle": "", "keywords": "échappement, collecteur", "notes": "", "image": null}, {"name": "Catalyseur", "category": "Échappement / dépollution", "vehicle": "", "keywords": "catalyseur, pollution", "notes": "", "image": null}, {"name": "Filtre à particules FAP", "category": "Échappement / dépollution", "vehicle": "", "keywords": "FAP, diesel, dépollution", "notes": "", "image": null}, {"name": "Vanne EGR", "category": "Échappement / dépollution", "vehicle": "", "keywords": "EGR, dépollution", "notes": "", "image": null}, {"name": "Silencieux d’échappement", "category": "Échappement / dépollution", "vehicle": "", "keywords": "échappement, silencieux", "notes": "", "image": null}, {"name": "Tube d’échappement", "category": "Échappement / dépollution", "vehicle": "", "keywords": "échappement, tube", "notes": "", "image": null}, {"name": "Capteur de pression différentielle FAP", "category": "Échappement / dépollution", "vehicle": "", "keywords": "FAP, capteur, pression", "notes": "", "image": null}, {"name": "Injecteur AdBlue", "category": "Échappement / dépollution", "vehicle": "", "keywords": "AdBlue, SCR, dépollution", "notes": "", "image": null}, {"name": "Filtre d’habitacle", "category": "Climatisation / habitacle", "vehicle": "", "keywords": "entretien, filtre, habitacle", "notes": "", "image": null}, {"name": "Compresseur de climatisation", "category": "Climatisation / habitacle", "vehicle": "", "keywords": "climatisation, compresseur", "notes": "", "image": null}, {"name": "Condenseur de climatisation", "category": "Climatisation / habitacle", "vehicle": "", "keywords": "climatisation, condenseur", "notes": "", "image": null}, {"name": "Évaporateur", "category": "Climatisation / habitacle", "vehicle": "", "keywords": "climatisation, évaporateur", "notes": "", "image": null}, {"name": "Pulseur d’air habitacle", "category": "Climatisation / habitacle", "vehicle": "", "keywords": "ventilation, pulseur", "notes": "", "image": null}, {"name": "Résistance de pulseur", "category": "Climatisation / habitacle", "vehicle": "", "keywords": "ventilation, résistance", "notes": "", "image": null}, {"name": "Balai d’essuie-glace", "category": "Essuyage / lavage", "vehicle": "", "keywords": "entretien, essuie-glace", "notes": "", "image": null}, {"name": "Moteur d’essuie-glace", "category": "Essuyage / lavage", "vehicle": "", "keywords": "essuie-glace, moteur", "notes": "", "image": null}, {"name": "Pompe de lave-glace", "category": "Essuyage / lavage", "vehicle": "", "keywords": "lave-glace, pompe", "notes": "", "image": null}, {"name": "Réservoir de lave-glace", "category": "Essuyage / lavage", "vehicle": "", "keywords": "lave-glace, réservoir", "notes": "", "image": null}, {"name": "Liquide lave-glace", "category": "Essuyage / lavage", "vehicle": "", "keywords": "entretien, lave-glace", "notes": "", "image": null}, {"name": "Culasse", "category": "Motorisation", "vehicle": "", "keywords": "moteur, culasse", "notes": "", "image": null}, {"name": "Joint de culasse", "category": "Motorisation", "vehicle": "", "keywords": "moteur, joint, culasse", "notes": "", "image": null}, {"name": "Bloc moteur", "category": "Motorisation", "vehicle": "", "keywords": "moteur, bloc", "notes": "", "image": null}, {"name": "Piston", "category": "Motorisation", "vehicle": "", "keywords": "moteur, piston", "notes": "", "image": null}, {"name": "Bielle", "category": "Motorisation", "vehicle": "", "keywords": "moteur, bielle", "notes": "", "image": null}, {"name": "Vilebrequin", "category": "Motorisation", "vehicle": "", "keywords": "moteur, vilebrequin", "notes": "", "image": null}, {"name": "Arbre à cames", "category": "Motorisation", "vehicle": "", "keywords": "moteur, arbre à cames", "notes": "", "image": null}, {"name": "Soupape d’admission", "category": "Motorisation", "vehicle": "", "keywords": "moteur, soupape, admission", "notes": "", "image": null}, {"name": "Soupape d’échappement", "category": "Motorisation", "vehicle": "", "keywords": "moteur, soupape, échappement", "notes": "", "image": null}, {"name": "Cache-culbuteurs", "category": "Motorisation", "vehicle": "", "keywords": "moteur, culasse", "notes": "", "image": null}, {"name": "Joint de cache-culbuteurs", "category": "Motorisation", "vehicle": "", "keywords": "moteur, joint, fuite huile", "notes": "", "image": null}, {"name": "Turbocompresseur", "category": "Suralimentation", "vehicle": "", "keywords": "turbo, suralimentation", "notes": "", "image": null}, {"name": "Durite de suralimentation", "category": "Suralimentation", "vehicle": "", "keywords": "turbo, durite, air", "notes": "", "image": null}, {"name": "Échangeur air-air / intercooler", "category": "Suralimentation", "vehicle": "", "keywords": "turbo, intercooler", "notes": "", "image": null}, {"name": "Électrovanne de commande turbo", "category": "Suralimentation", "vehicle": "", "keywords": "turbo, électrovanne", "notes": "", "image": null}, {"name": "Prise diagnostic OBD", "category": "Diagnostic", "vehicle": "", "keywords": "OBD, diagnostic", "notes": "", "image": null}, {"name": "Calculateur moteur", "category": "Diagnostic", "vehicle": "", "keywords": "ECU, calculateur, moteur", "notes": "", "image": null}, {"name": "Capteur de température d’air", "category": "Diagnostic", "vehicle": "", "keywords": "capteur, température, admission", "notes": "", "image": null}, {"name": "Capteur de cliquetis", "category": "Diagnostic", "vehicle": "", "keywords": "capteur, cliquetis, moteur", "notes": "", "image": null}, {"name": "Rétroviseur extérieur", "category": "Carrosserie", "vehicle": "", "keywords": "rétroviseur, carrosserie", "notes": "", "image": null}, {"name": "Poignée de porte", "category": "Carrosserie", "vehicle": "", "keywords": "porte, poignée", "notes": "", "image": null}, {"name": "Serrure de porte", "category": "Carrosserie", "vehicle": "", "keywords": "porte, serrure", "notes": "", "image": null}, {"name": "Lève-vitre", "category": "Carrosserie", "vehicle": "", "keywords": "vitre, mécanisme", "notes": "", "image": null}, {"name": "Batterie de traction", "category": "Hybride / électrique", "vehicle": "", "keywords": "électrique, hybride, batterie haute tension", "notes": "", "image": null}, {"name": "Moteur électrique de traction", "category": "Hybride / électrique", "vehicle": "", "keywords": "électrique, hybride, traction", "notes": "", "image": null}, {"name": "Onduleur / convertisseur", "category": "Hybride / électrique", "vehicle": "", "keywords": "électrique, hybride, puissance", "notes": "", "image": null}, {"name": "Convertisseur DC-DC", "category": "Hybride / électrique", "vehicle": "", "keywords": "électrique, hybride, convertisseur", "notes": "", "image": null}, {"name": "Prise de recharge", "category": "Hybride / électrique", "vehicle": "", "keywords": "électrique, recharge", "notes": "", "image": null}, {"name": "Câble de recharge", "category": "Hybride / électrique", "vehicle": "", "keywords": "électrique, recharge, câble", "notes": "", "image": null}, {"name": "Compresseur de climatisation électrique", "category": "Hybride / électrique", "vehicle": "", "keywords": "électrique, climatisation", "notes": "", "image": null}];
+
+async function seedStarterLibrary(){
+  const existing = await allPhotos();
+  if(existing.length) return;
+  const now = Date.now();
+  for(let i=0;i<STARTER_LIBRARY.length;i++) {
+    const p = STARTER_LIBRARY[i];
+    await addPhoto({
+      ...p,
+      createdAt: now + i,
+      updatedAt: now + i
+    });
+  }
+}
+
+(async()=>{await openDB();await seedStarterLibrary();render()})();
+
+</script>
+</body>
+</html>
