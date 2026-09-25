@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Photothèque Atelier V16</title>
+<title>Photothèque Atelier V17</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7fb;color:#17212b}
 header{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #dbe3ec;padding:14px}
@@ -26,7 +26,7 @@ main{max-width:1450px;margin:16px auto;padding:0 14px}.progress{background:#fff;
 </style>
 </head>
 <body>
-<header><div class="wrap"><div class="title">Photothèque Atelier</div><div class="sub">V16 • catalogue automobile • cartes modifiables et duplicables • fichiers .photo</div>
+<header><div class="wrap"><div class="title">Photothèque Atelier</div><div class="sub">V17 • catalogue automobile • cartes modifiables et duplicables • fichiers .photo</div>
 <div class="tools"><input id="q" placeholder="Rechercher une pièce…"><select id="cat"><option value="">Toutes les catégories</option></select>
 <button id="newCard">+ Nouvelle carte</button><button id="export">Enregistrer la photothèque</button><label class="btn primary" for="import">Ouvrir une photothèque</label><input id="import" type="file" accept=".photo,.json,application/json,application/octet-stream,text/plain" hidden></div></div></header>
 <main><div class="progress"><div class="progressTop"><span id="photoCount">0 photo / 0 carte</span><span class="pct" id="photoPct">0 %</span></div><div class="bar"><div class="fill" id="progressFill"></div></div><div class="small" id="remaining"></div></div>
@@ -65,7 +65,7 @@ function closeForm(){$("#cardModal").style.display="none"}
 async function saveForm(){let name=$("#fName").value.trim();if(!name)return alert("Indiquez le nom de la pièce.");let category=$("#fCategory").value;if(category==="__NEW__"){category=$("#fNewCategory").value.trim();if(!category)return alert("Indiquez la nouvelle catégorie.")}let id=$("#cardId").value,p=id?find(id):null;if(!p){p={id:"custom_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),image:"",custom:true};data.push(p)}p.name=name;p.category=category||"Autres";p.vehicle=$("#fVehicle").value.trim();p.keywords=$("#fKeywords").value.trim();p.notes=$("#fNotes").value.trim();if(editingRemovePhoto)p.image="";let f=$("#fPhoto").files[0];if(f)p.image=await imageTo43(f);safeSave();updateSelectors(false);$("#cat").value=p.category;$("#q").value="";closeForm();render()}
 function duplicate(id){let p=find(id);if(!p)return;let base=String(p.name).replace(/\s*[—-]\s*Variante\s+\d+\s*$/i,""),n=2;while(data.some(x=>x.category===p.category&&x.name===`${base} — Variante ${n}`))n++;data.push({...p,id:"custom_"+Date.now()+"_"+Math.random().toString(36).slice(2,8),name:`${base} — Variante ${n}`,image:"",custom:true,duplicatedFrom:p.id});safeSave();updateSelectors(false);$("#cat").value=p.category;$("#q").value="";render()}
 function normalizeLibrary(o){if(Array.isArray(o))return o;if(o&&Array.isArray(o.photos))return o.photos;if(o&&Array.isArray(o.data))return o.data;throw new Error("Format non reconnu")}
-async function openText(txt,name=""){let o=JSON.parse(String(txt).replace(/^\uFEFF/,""));let arr=normalizeLibrary(o);data=arr.map((x,i)=>({...x,id:x.id??("import_"+Date.now()+"_"+i)}));safeSave();updateSelectors(false);$("#q").value="";$("#cat").value="";render();document.title="Photothèque Atelier V16"+(name?" — "+name:"")}
+async function openText(txt,name=""){let o=JSON.parse(String(txt).replace(/^\uFEFF/,""));let arr=normalizeLibrary(o);data=arr.map((x,i)=>({...x,id:x.id??("import_"+Date.now()+"_"+i)}));safeSave();updateSelectors(false);$("#q").value="";$("#cat").value="";render();document.title="Photothèque Atelier V17"+(name?" — "+name:"")}
 function openLight(src){$("#lightImg").src=src;$("#lightbox").style.display="flex"}function closeLight(){$("#lightbox").style.display="none";$("#lightImg").src=""}
 $("#q").oninput=render;$("#cat").onchange=render;$("#newCard").onclick=()=>openForm();$("#cancelCard").onclick=closeForm;$("#saveCard").onclick=saveForm;$("#fCategory").onchange=()=>$("#newCatWrap").style.display=$("#fCategory").value==="__NEW__"?"block":"none";$("#removePhoto").onclick=()=>{editingRemovePhoto=true;$("#removePhoto").textContent="Photo à retirer"};$("#picker").onchange=e=>{let f=e.target.files[0];if(f&&targetId!=null)setImage(targetId,f);e.target.value=""};$("#import").onchange=async e=>{let f=e.target.files[0];if(!f)return;try{await openText(await f.text(),f.name)}catch(err){alert("Impossible d’ouvrir ce fichier .photo.\n\n"+err.message)}finally{e.target.value=""}};$("#export").onclick=()=>{let blob=new Blob([JSON.stringify({format:"Phototheque Atelier",version:5,photos:data},null,2)],{type:"application/octet-stream"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="Phototheque_Atelier.photo";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};$(".closeLight").onclick=closeLight;$("#lightbox").onclick=e=>{if(e.target.id==="lightbox")closeLight()};
 async function autoOpen(){let u=new URL(location.href),x=u.searchParams.get("open");if(!x)return;try{let r=await fetch(x,{cache:"no-store"});if(!r.ok)throw new Error("Lecture impossible");await openText(await r.text(),u.searchParams.get("name")||"")}catch(e){alert("Ouverture automatique impossible : "+e.message)}}
