@@ -1,5 +1,5 @@
 <!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Photothèque Atelier V6 — Double-clic Windows</title>
+<title>Photothèque Atelier V8 — Duplication</title>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Arial;background:#f3f6fa;color:#17324d}
 header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #dbe4ef;padding:14px}
@@ -25,10 +25,22 @@ main{max-width:1250px;margin:auto;padding:16px} .count{margin:0 0 12px;color:#66
 .lightbox img{max-width:94vw;max-height:88vh;object-fit:contain;background:#fff;border-radius:10px;box-shadow:0 12px 45px #0008}
 .lightbox .close{position:absolute;top:16px;right:18px;width:44px;height:44px;border:0;border-radius:50%;font-size:28px;line-height:1;background:#fff;color:#17324d;cursor:pointer}
 .lightbox .caption{position:absolute;left:20px;right:20px;bottom:14px;text-align:center;color:#fff;font-weight:700}
+
+.progressBox{background:#fff;border:1px solid #dbe3ec;border-radius:14px;padding:12px 14px;min-width:250px}
+.progressLine{display:flex;justify-content:space-between;gap:12px;font-weight:800}
+.progressBar{height:10px;background:#e8edf3;border-radius:999px;overflow:hidden;margin-top:8px}
+.progressFill{height:100%;background:#1976d2;width:0%;transition:width .2s}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.formgrid .full{grid-column:1/-1}
+.formgrid label{display:block;font-size:13px;font-weight:700;margin-bottom:5px}
+.formgrid input,.formgrid select,.formgrid textarea{width:100%;box-sizing:border-box;padding:10px;border:1px solid #ccd6e0;border-radius:9px;font:inherit}
+.formgrid textarea{min-height:75px;resize:vertical}
+.modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+@media(max-width:650px){.formgrid{grid-template-columns:1fr}.formgrid .full{grid-column:auto}.progressBox{min-width:0;width:100%}}
 </style></head><body>
 <header><div class="head"><h1>Photothèque Atelier</h1>
-<div class="sub">Catalogue automobile prérempli • .photo • double-clic Windows • glisser-déposer • clic pour agrandir</div>
-<div class="tools"><input id="q" placeholder="Rechercher une pièce…"><select id="cat"><option value="">Toutes les catégories</option><option>Accessoires moteur</option><option>Admission / alimentation</option><option>Alimentation carburant</option><option>Allumage / préchauffage</option><option>Carrosserie</option><option>Climatisation / habitacle</option><option>Diagnostic</option><option>Distribution</option><option>Entretien moteur</option><option>Essuyage / lavage</option><option>Freinage</option><option>Hybride / électrique</option><option>Motorisation</option><option>Refroidissement</option><option>Roues / pneumatiques</option><option>Suralimentation</option><option>Suspension / direction</option><option>Transmission</option><option>Échappement / dépollution</option><option>Éclairage / signalisation</option><option>Électricité / électronique</option></select><button id="export">Enregistrer la photothèque</button><label class="btn" for="import">Ouvrir une photothèque</label><input id="import" type="file" accept=".photo,.json,application/json" hidden></div></div></header>
+<div class="sub">Catalogue évolutif • compteur • nouvelles cartes/catégories • duplication de variantes • .photo • double-clic Windows</div>
+<div class="tools"><input id="q" placeholder="Rechercher une pièce…"><select id="cat"><option value="">Toutes les catégories</option><option>Accessoires moteur</option><option>Admission / alimentation</option><option>Alimentation carburant</option><option>Allumage / préchauffage</option><option>Carrosserie</option><option>Climatisation / habitacle</option><option>Diagnostic</option><option>Distribution</option><option>Entretien moteur</option><option>Essuyage / lavage</option><option>Freinage</option><option>Hybride / électrique</option><option>Motorisation</option><option>Refroidissement</option><option>Roues / pneumatiques</option><option>Suralimentation</option><option>Suspension / direction</option><option>Transmission</option><option>Échappement / dépollution</option><option>Éclairage / signalisation</option><option>Électricité / électronique</option></select><button id="newCard">+ Nouvelle carte</button><button id="export">Enregistrer la photothèque</button><label class="btn" for="import">Ouvrir une photothèque</label><input id="import" type="file" accept=".photo,.json,application/json" hidden></div></div></header>
 <main><div class="notice">Déposez une image directement sur la carte correspondante. Cliquez sur une photo pour l’agrandir. « Enregistrer la photothèque » crée un fichier .photo contenant le catalogue et toutes vos images ; « Ouvrir une photothèque » recharge ce fichier sur un autre poste.</div>
 <div class="count"><b id="n"></b> éléments affichés sur 162.</div><div id="grid" class="grid"></div></main>
 <input id="picker" type="file" accept="image/*">
@@ -43,13 +55,14 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){aler
 function norm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function render(){
+  updateCounter();
  const q=norm(document.querySelector('#q').value), c=document.querySelector('#cat').value;
  const list=data.filter(x=>(!c||x.category===c)&&(!q||norm(x.name+' '+x.category).includes(q)));
  document.querySelector('#n').textContent=list.length;
  const g=document.querySelector('#grid'); g.innerHTML='';
  for(const p of list){
   const card=document.createElement('div');card.className='card';
-  card.innerHTML=`<div class="photo" data-id="${p.id}">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:`<div class="placeholder">Aucune photo<small>Glisser-déposer ici</small></div>`}</div><div class="body"><div class="name">${esc(p.name)}</div><div class="cat">${esc(p.category)}</div><div class="actions"><button data-pick="${p.id}">Choisir une photo</button>${p.image?`<button class="remove" data-rm="${p.id}">Retirer</button>`:''}</div></div>`;
+  card.innerHTML=`<div class="photo" data-id="${p.id}">${p.image?`<img src="${p.image}" alt="${esc(p.name)}">`:`<div class="placeholder">Aucune photo<small>Glisser-déposer ici</small></div>`}</div><div class="body"><div class="name">${esc(p.name)}</div><div class="cat">${esc(p.category)}</div><div class="actions"><button data-pick="${p.id}">Choisir une photo</button><button data-dup="${p.id}" title="Créer une variante de cette carte">Dupliquer</button>${p.image?`<button class="remove" data-rm="${p.id}">Retirer</button>`:''}</div></div>`;
   g.appendChild(card);
  }
  bind();
@@ -104,7 +117,103 @@ async function autoOpenFromLauncher(){
   }
 }
 
+
+function updateCounter(){
+  const total=data.length;
+  const filled=data.filter(p=>!!p.image).length;
+  const pct=total?Math.round((filled/total)*100):0;
+  const a=document.getElementById('photoCount'), b=document.getElementById('photoPct'), c=document.getElementById('progressFill');
+  if(a)a.textContent=`Photos ajoutées : ${filled} / ${total}`;
+  if(b)b.textContent=`${pct} %`;
+  if(c)c.style.width=pct+'%';
+}
+function allCategories(){
+  return [...new Set(data.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr'));
+}
+function refreshCategorySelectors(){
+  const cats=allCategories();
+  const main=document.getElementById('category');
+  if(main){
+    const old=main.value;
+    main.innerHTML='<option value="">Toutes les catégories</option>'+cats.map(c=>`<option>${esc(c)}</option>`).join('');
+    if([...main.options].some(o=>o.value===old)) main.value=old;
+  }
+  const nc=document.getElementById('ncCategory');
+  if(nc){
+    nc.innerHTML=cats.map(c=>`<option>${esc(c)}</option>`).join('')+'<option value="__NEW__">+ Créer une nouvelle catégorie…</option>';
+  }
+}
+function openCardModal(){
+  refreshCategorySelectors();
+  document.getElementById('ncName').value='';
+  document.getElementById('ncVehicle').value='';
+  document.getElementById('ncKeywords').value='';
+  document.getElementById('ncNotes').value='';
+  document.getElementById('ncNewCategory').value='';
+  document.getElementById('ncPhoto').value='';
+  document.getElementById('newCatWrap').style.display='none';
+  document.getElementById('cardModal').style.display='flex';
+}
+function closeCardModal(){document.getElementById('cardModal').style.display='none'}
+async function createNewCard(){
+  const name=document.getElementById('ncName').value.trim();
+  if(!name){alert('Indiquez le nom de la pièce.');return}
+  let category=document.getElementById('ncCategory').value;
+  if(category==='__NEW__'){
+    category=document.getElementById('ncNewCategory').value.trim();
+    if(!category){alert('Indiquez le nom de la nouvelle catégorie.');return}
+  }
+  if(!category) category='Autres';
+  const item={
+    id:'custom_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    name, category,
+    vehicle:document.getElementById('ncVehicle').value.trim(),
+    keywords:document.getElementById('ncKeywords').value.trim(),
+    notes:document.getElementById('ncNotes').value.trim(),
+    image:'', custom:true
+  };
+  const f=document.getElementById('ncPhoto').files[0];
+  if(f) item.image=await processImage(f);
+  data.push(item); save(); refreshCategorySelectors(); render(); closeCardModal();
+}
+
+
+function baseVariantName(name){
+  return String(name||'').replace(/\s*[—-]\s*Variante\s+\d+\s*$/i,'').trim();
+}
+function duplicateCard(id){
+  const source=data.find(x=>x.id===id);
+  if(!source) return;
+  const base=baseVariantName(source.name);
+  const reVar=new RegExp('^'+base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[—-]\\s*Variante\\s+(\\d+)$','i');
+  let max=1;
+  data.forEach(x=>{
+    if(x===source) return;
+    const m=String(x.name||'').match(reVar);
+    if(m) max=Math.max(max,Number(m[1])||1);
+  });
+  const copy={...source};
+  copy.id='custom_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+  copy.name=base+' — Variante '+(max+1);
+  copy.image=''; // independent photo slot
+  copy.custom=true;
+  copy.duplicatedFrom=source.id;
+  data.push(copy);
+  save(); refreshCategorySelectors(); render();
+  setTimeout(()=>{
+    const q=document.querySelector('#q');
+    if(q){q.value=copy.name;render()}
+  },0);
+}
+
 function bind(){
+  document.getElementById('newCard')?.addEventListener('click',openCardModal);
+  document.getElementById('closeCardModal')?.addEventListener('click',closeCardModal);
+  document.getElementById('cancelCard')?.addEventListener('click',closeCardModal);
+  document.getElementById('createCard')?.addEventListener('click',createNewCard);
+  document.getElementById('ncCategory')?.addEventListener('change',e=>{document.getElementById('newCatWrap').style.display=e.target.value==='__NEW__'?'block':'none'});
+  document.getElementById('cardModal')?.addEventListener('click',e=>{if(e.target.id==='cardModal')closeCardModal()});
+
  document.querySelectorAll('.photo').forEach(z=>{
   const id=+z.dataset.id;
   z.onclick=(e)=>{const p=data.find(x=>x.id===id);if(p?.image && e.target.tagName==='IMG'){openLightbox(p)}else{targetId=id;document.querySelector('#picker').click()}};
@@ -112,6 +221,7 @@ function bind(){
   z.ondragleave=()=>z.classList.remove('drag');
   z.ondrop=e=>{e.preventDefault();z.classList.remove('drag');const f=[...(e.dataTransfer.files||[])].find(f=>f.type.startsWith('image/'));if(f)setImage(id,f);else alert("Ce site ne transmet pas directement le fichier image. Enregistrez l'image sur l'ordinateur puis déposez-la ici.")};
  });
+ document.querySelectorAll('[data-dup]').forEach(b=>b.onclick=()=>duplicateCard(b.dataset.dup));
  document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{targetId=+b.dataset.pick;document.querySelector('#picker').click()});
  document.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{const p=data.find(x=>x.id===+b.dataset.rm);if(p&&confirm('Retirer cette photo ?')){p.image=null;save();render()}});
 }
@@ -119,6 +229,25 @@ document.querySelector('#picker').onchange=e=>{const f=e.target.files[0];if(f&&t
 document.querySelector('#q').oninput=render;document.querySelector('#cat').onchange=render;
 document.querySelector('#export').onclick=()=>{const blob=new Blob([JSON.stringify({format:'Phototheque Atelier',version:4,photos:data},null,2)],{type:'application/octet-stream'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Phototheque_Atelier.photo';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
 document.querySelector('#import').onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());if(!Array.isArray(j.photos))throw 0;data=j.photos;save();render();alert('Photothèque ouverte avec succès.')}catch(x){alert('Fichier .photo ou .json invalide.')}e.target.value=''};
+refreshCategorySelectors();
 render();
 autoOpenFromLauncher();
-</script></body></html>
+</script>
+<div id="cardModal" class="lightbox" style="display:none">
+  <div style="background:white;color:#17212b;width:min(680px,92vw);max-height:90vh;overflow:auto;border-radius:16px;padding:20px;position:relative">
+    <button id="closeCardModal" type="button" style="position:absolute;right:12px;top:10px;font-size:24px;border:0;background:transparent;cursor:pointer">×</button>
+    <h2 style="margin-top:0">Créer une nouvelle carte</h2>
+    <div class="formgrid">
+      <div><label>Nom de la pièce *</label><input id="ncName" placeholder="Ex. Capteur NOx"></div>
+      <div><label>Catégorie</label><select id="ncCategory"></select></div>
+      <div class="full" id="newCatWrap" style="display:none"><label>Nouvelle catégorie *</label><input id="ncNewCategory" placeholder="Nom de la nouvelle catégorie"></div>
+      <div><label>Véhicule / support</label><input id="ncVehicle" placeholder="Optionnel"></div>
+      <div><label>Mots-clés</label><input id="ncKeywords" placeholder="diagnostic, dépollution…"></div>
+      <div class="full"><label>Notes</label><textarea id="ncNotes" placeholder="Optionnel"></textarea></div>
+      <div class="full"><label>Photo initiale</label><input id="ncPhoto" type="file" accept="image/*"></div>
+    </div>
+    <div class="modalActions"><button id="cancelCard" type="button">Annuler</button><button id="createCard" type="button">Créer la carte</button></div>
+  </div>
+</div>
+
+</body></html>
